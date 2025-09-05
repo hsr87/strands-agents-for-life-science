@@ -1,7 +1,7 @@
 Parameters:
   DatabaseName:
     Type: String
-    Default: biomarkerdb
+    Default: agentdb
     Description: The name of the Aurora PostgreSQL database
   DBUsername:
     Type: String
@@ -375,55 +375,166 @@ Resources:
 
           def create_tables(conn):
               with conn.cursor() as cur:
-                  # Create patients table
+                  # Create chemotherapy_survival table
                   cur.execute("""
-                      CREATE TABLE IF NOT EXISTS patients (
-                          patient_id SERIAL PRIMARY KEY,
-                          name VARCHAR(100) NOT NULL,
-                          birth_date DATE NOT NULL,
-                          gender CHAR(1) CHECK (gender IN ('M', 'F')),
-                          insurance_type VARCHAR(50),
-                          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                      CREATE TABLE IF NOT EXISTS chemotherapy_survival (
+                          LRIG1 FLOAT,
+                          Survival_Status BOOLEAN,
+                          Survival_Duration FLOAT,
+                          ExpressionGroup FLOAT
                       );
 
-                      COMMENT ON TABLE patients IS '환자 정보를 저장하는 테이블';
-                      COMMENT ON COLUMN patients.patient_id IS '환자 고유 식별자 (자동증가)';
-                      COMMENT ON COLUMN patients.name IS '환자 이름';
-                      COMMENT ON COLUMN patients.birth_date IS '생년월일';
-                      COMMENT ON COLUMN patients.gender IS '성별 (M: 남성, F: 여성)';
-                      COMMENT ON COLUMN patients.insurance_type IS '보험 유형 (국민건강보험, 의료급여, 자보 등)';
-                      COMMENT ON COLUMN patients.created_at IS '레코드 생성 시간';
+                      COMMENT ON TABLE chemotherapy_survival IS 'Chemotherapy survival data';
+                      COMMENT ON COLUMN chemotherapy_survival.LRIG1 IS 'Gene expression value for LRIG1';
+                      COMMENT ON COLUMN chemotherapy_survival.Survival_Status IS 'BOOLEAN false for Alive or true for Dead';
+                      COMMENT ON COLUMN chemotherapy_survival.Survival_Duration IS 'Survival duration in days';
+                      COMMENT ON COLUMN chemotherapy_survival.ExpressionGroup IS 'Integer 1 or 0 for expression group';
                   """)
 
-                  # Create medical_records table
+                  # Create clinical_genomic table
                   cur.execute("""
-                      CREATE TABLE IF NOT EXISTS medical_records (
-                          record_id SERIAL PRIMARY KEY,
-                          patient_id INTEGER NOT NULL,
-                          visit_date DATE NOT NULL,
-                          diagnosis_code VARCHAR(10) NOT NULL,
-                          diagnosis_name VARCHAR(200) NOT NULL,
-                          diagnosis_cause VARCHAR(300),
-                          doctor_name VARCHAR(100) NOT NULL,
-                          treatment TEXT,
-                          notes TEXT,
-                          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                          FOREIGN KEY (patient_id) REFERENCES patients(patient_id)
+                      CREATE TABLE IF NOT EXISTS clinical_genomic (
+                          Case_ID VARCHAR(50),
+                          LRIG1 FLOAT,
+                          HPGD FLOAT,
+                          GDF15 FLOAT,
+                          CDH2 FLOAT,
+                          POSTN FLOAT,
+                          VCAN FLOAT,
+                          PDGFRA FLOAT,
+                          VCAM1 FLOAT,
+                          CD44 FLOAT,
+                          CD48 FLOAT,
+                          CD4 FLOAT,
+                          LYL1 FLOAT,
+                          SPI1 FLOAT,
+                          CD37 FLOAT,
+                          VIM FLOAT,
+                          LMO2 FLOAT,
+                          EGR2 FLOAT,
+                          BGN FLOAT,
+                          COL4A1 FLOAT,
+                          COL5A1 FLOAT,
+                          COL5A2 FLOAT,
+                          Patient_affiliation VARCHAR(50),
+                          Age_at_Histological_Diagnosis INT,
+                          Weight_lbs FLOAT,
+                          Gender VARCHAR(10),
+                          Ethnicity VARCHAR(50),
+                          Smoking_status VARCHAR(50),
+                          Pack_Years INT,
+                          Percent_GG VARCHAR(20),
+                          Tumor_Location_RUL VARCHAR(20),
+                          Tumor_Location_RML VARCHAR(20),
+                          Tumor_Location_RLL VARCHAR(20),
+                          Tumor_Location_LUL VARCHAR(20),
+                          Tumor_Location_LLL VARCHAR(20),
+                          Tumor_Location_L_Lingula VARCHAR(20),
+                          Tumor_Location_Unknown VARCHAR(20),
+                          Histology VARCHAR(70),
+                          Pathological_T_stage VARCHAR(20),
+                          Pathological_N_stage VARCHAR(20),
+                          Pathological_M_stage VARCHAR(20),
+                          Histopathological_Grade VARCHAR(70),
+                          Lymphovascular_invasion VARCHAR(60),
+                          Pleural_invasion VARCHAR(50),
+                          EGFR_mutation_status VARCHAR(50),
+                          KRAS_mutation_status VARCHAR(50),
+                          ALK_translocation_status VARCHAR(50),
+                          Adjuvant_Treatment VARCHAR(20),
+                          Chemotherapy VARCHAR(20),
+                          Radiation VARCHAR(20),
+                          Recurrence VARCHAR(20),
+                          Recurrence_Location VARCHAR(50),
+                          Survival_Status BOOLEAN,
+                          Time_to_Death FLOAT,
+                          Days_between_CT_and_surgery INT,
+                          Survival_Duration FLOAT
                       );
-
-                      COMMENT ON TABLE medical_records IS '환자의 진료 기록을 저장하는 테이블';
-                      COMMENT ON COLUMN medical_records.record_id IS '진료기록 고유 식별자 (자동증가)';
-                      COMMENT ON COLUMN medical_records.patient_id IS '환자 ID (외래키)';
-                      COMMENT ON COLUMN medical_records.visit_date IS '진료 날짜';
-                      COMMENT ON COLUMN medical_records.diagnosis_code IS 'KCD 진단 코드';
-                      COMMENT ON COLUMN medical_records.diagnosis_name IS '진단명';
-                      COMMENT ON COLUMN medical_records.diagnosis_cause IS '진단 원인 또는 유발 요인';
-                      COMMENT ON COLUMN medical_records.doctor_name IS '담당 의사명';
-                      COMMENT ON COLUMN medical_records.treatment IS '치료 내용';
-                      COMMENT ON COLUMN medical_records.notes IS '진료 메모';
-                      COMMENT ON COLUMN medical_records.created_at IS '레코드 생성 시간';
                   """)
                   conn.commit()
+
+          def load_chemotherapy_data(conn, df):
+              with conn.cursor() as cur:
+                  for _, row in df.iterrows():
+                      try: 
+                          
+                          # Check if all required columns exist
+                          required_columns = ['LRIG1', 'Survival_Status', 'Survival_Duration', 'ExpressionGroup']
+                          for col in required_columns:
+                              if col not in row:
+                                  print(f"Missing column: {col}")
+                                  print(f"Available columns: {row.keys()}")
+                                  raise ValueError(f"Missing column: {col}")
+                          
+                          cur.execute("""
+                              INSERT INTO chemotherapy_survival (
+                                  LRIG1, Survival_Status, Survival_Duration, ExpressionGroup
+                              ) VALUES (%s, %s, %s, %s)
+                          """, (
+                              float(row['LRIG1']),
+                              bool(row['Survival_Status']),
+                              float(row['Survival_Duration']),
+                              float(row['ExpressionGroup'])
+                          ))
+                      except Exception as e:
+                          print(f"Error inserting row: {row}")
+                          print(f"Error details: {str(e)}")
+                          print(f"Row keys: {row.keys()}")
+                          raise
+              conn.commit()
+
+          def load_clinical_genomic_data(conn, df):
+              with conn.cursor() as cur:
+                  for _, row in df.iterrows():
+                      try:
+                          # Create a copy of the row data to modify
+                          row_dict = row.to_dict()
+                          
+                          # Convert Survival_Status to boolean if it exists
+                          if 'Survival_Status' in row_dict:
+                              row_dict['Survival_Status'] = bool(row_dict['Survival_Status'])
+                          
+                          columns = list(row_dict.keys())
+                          placeholders = ','.join(['%s'] * len(columns))
+                          columns_str = ','.join(columns)
+                          
+                          cur.execute(f"""
+                              INSERT INTO clinical_genomic ({columns_str})
+                              VALUES ({placeholders})
+                          """, tuple(row_dict.values()))
+                      except Exception as e:
+                          print(f"Error inserting clinical data row")
+                          print(f"Error details: {str(e)}")
+                          raise
+              conn.commit()
+
+          def send_cfn_response(event, context, status, data):
+              response_url = event['ResponseURL']
+          
+              response_body = {
+                  'Status': status,
+                  'Reason': f'See details in CloudWatch Log Stream: {context.log_stream_name}',
+                  'PhysicalResourceId': context.log_stream_name,
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': data
+              }
+          
+              json_response_body = json.dumps(response_body)
+          
+              headers = {
+                  'content-type': '',
+                  'content-length': str(len(json_response_body))
+              }
+          
+              print("Sending response to CFN:", response_url)
+              try:
+                  response = http.request('PUT', response_url, body=json_response_body, headers=headers)
+                  print("CFN response status:", response.status)
+              except Exception as e:
+                  print("Failed to send CFN response:", str(e))
 
           def lambda_handler(event, context):
               try:
@@ -431,24 +542,78 @@ Resources:
                   
                   if event.get('RequestType') == 'Delete':
                       print("Delete request received, sending success response")
+                       # 성공 시
                       cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Message': 'Data loaded successfully'})
+
                       return {
                           'StatusCode': 200,
                           'Body': json.dumps('Delete request processed')
                       }
                   
+                  # Use urllib to download files from public URLs
+                  chemotherapy_url = 'https://ws-assets-prod-iad-r-pdx-f3b3f9f1a7d6a3d0.s3.us-west-2.amazonaws.com/4004aa8f-bdce-4519-8dd6-3453b04b0d03/dataset/chemotherapy_survival.csv'
+                  clinical_genomic_url = 'https://ws-assets-prod-iad-r-pdx-f3b3f9f1a7d6a3d0.s3.us-west-2.amazonaws.com/4004aa8f-bdce-4519-8dd6-3453b04b0d03/dataset/clinical_genomic.csv'
+                  
+                  try:
+                      print(f"Downloading chemotherapy data from: {chemotherapy_url}")
+                      urllib.request.urlretrieve(chemotherapy_url, '/tmp/chemotherapy_survival.csv')
+                      print("Successfully downloaded chemotherapy data")
+                      print(f"Downloading clinical genomic data from: {clinical_genomic_url}")
+                      urllib.request.urlretrieve(clinical_genomic_url, '/tmp/clinical_genomic.csv')
+                      print("Successfully downloaded clinical genomic data")
+                  except Exception as e:
+                      print(f"Error downloading files: {str(e)}")
+                      import traceback
+                      print(traceback.format_exc())
+                      raise
+
+                  # Load data into DataFrames
+                  chemotherapy_df = pd.read_csv('/tmp/chemotherapy_survival.csv')
+                  clinical_df = pd.read_csv('/tmp/clinical_genomic.csv')
+                  
+                  # Print column names for debugging
+                  print("Chemotherapy DataFrame columns:", chemotherapy_df.columns.tolist())
+                  print("Clinical DataFrame columns:", clinical_df.columns.tolist())
+                  
+                  # Rename columns to match database schema
+                  chemotherapy_df = chemotherapy_df.rename(columns={
+                      'Survival Status': 'Survival_Status',
+                      'Survival duration': 'Survival_Duration',
+                      'LRIG1': 'LRIG1',
+                      'ExpressionGroup': 'ExpressionGroup'
+                  })
+                  
+                  if 'Survival Status' in clinical_df.columns:
+                      clinical_df = clinical_df.rename(columns={
+                          'Survival Status': 'Survival_Status'
+                      })
+                  
+                  # Convert string "TRUE"/"FALSE" to boolean
+                  if 'Survival_Status' in chemotherapy_df.columns:
+                      chemotherapy_df['Survival_Status'] = chemotherapy_df['Survival_Status'].map({'TRUE': True, 'FALSE': False})
+                  
+                  if 'Survival_Status' in clinical_df.columns:
+                      clinical_df['Survival_Status'] = clinical_df['Survival_Status'].map({'TRUE': True, 'FALSE': False})
+                  
+                  # Print updated column names for verification
+                  print("Updated chemotherapy columns:", chemotherapy_df.columns.tolist())
+
                   # Connect to database and create tables
                   conn = get_db_connection()
                   create_tables(conn)
+
+                  # Load data into tables
+                  load_chemotherapy_data(conn, chemotherapy_df)
+                  load_clinical_genomic_data(conn, clinical_df) 
                   conn.close() 
                   
                   # Send success response to CloudFormation
-                  print("Tables created successfully, sending success response to CloudFormation")
-                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Message': 'Tables created successfully'})
+                  print("Data loaded successfully, sending success response to CloudFormation")
+                  send_cfn_response(event, context, cfnresponse.SUCCESS, {'Message': 'Data loaded successfully'})
 
                   return {
                       'StatusCode': 200,
-                      'Body': json.dumps('Tables created successfully')
+                      'Body': json.dumps('Data loaded successfully')
                   }
 
               except Exception as e:
@@ -459,7 +624,7 @@ Resources:
                   
                   # Send failure response to CloudFormation
                   print("Sending failure response to CloudFormation")
-                  cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": str(e)})
+                  send_cfn_response(event, context, cfnresponse.FAILED, {"Error": str(e)})
                   
                   return {
                       'StatusCode': 500,
