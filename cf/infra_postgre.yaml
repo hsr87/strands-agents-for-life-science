@@ -1,0 +1,573 @@
+Parameters:
+  DatabaseName:
+    Type: String
+    Default: biomarkerdb
+    Description: The name of the Aurora PostgreSQL database
+  DBUsername:
+    Type: String
+    Default: dbadmin
+    Description: Username for the database (cannot be 'admin' as it's a reserved word)
+  DBPassword:
+    Type: String
+    Default: postgres
+    NoEcho: true
+    Description: Password for the database (must be at least 8 characters)
+    MinLength: 8
+
+Mappings:
+  RegionMap:
+    us-east-1:
+      PandasLayer: arn:aws:lambda:us-east-1:336392948345:layer:AWSSDKPandas-Python39:11
+      Psycopg2Layer: arn:aws:lambda:us-east-1:898466741470:layer:psycopg2-py39:7
+    us-east-2:
+      PandasLayer: arn:aws:lambda:us-east-2:336392948345:layer:AWSSDKPandas-Python39:11
+      Psycopg2Layer: arn:aws:lambda:us-east-2:898466741470:layer:psycopg2-py39:1
+    us-west-2:
+      PandasLayer: arn:aws:lambda:us-west-2:336392948345:layer:AWSSDKPandas-Python39:11
+      Psycopg2Layer: arn:aws:lambda:us-west-2:898466741470:layer:psycopg2-py39:7
+    ap-northeast-2:
+      PandasLayer: arn:aws:lambda:ap-northeast-2:336392948345:layer:AWSSDKPandas-Python39:11
+      Psycopg2Layer: arn:aws:lambda:ap-northeast-2:898466741470:layer:psycopg2-py39:7
+
+Resources:
+  # VPC Resources
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PublicSubnet1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PublicSubnet2
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.0.3.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PrivateSubnet1
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.0.4.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PrivateSubnet2
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PublicRouteTable
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # VPC Endpoints for S3 access
+  S3VPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    DependsOn: PrivateRouteTable
+    Properties:
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+      VpcId: !Ref VPC
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PublicRouteTable
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - "s3:GetObject"
+              - "s3:ListBucket"
+              - "s3:PutObject"
+            Resource: "*"
+
+  CloudFormationVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.cloudformation"
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref LambdaSecurityGroup
+
+  # NAT Gateway resources
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachGateway
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-NatGatewayEIP
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-NatGateway
+
+  # Private Route Tables for Lambda subnets
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PrivateRouteTable
+
+  # Route through NAT Gateway for internet access
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    DependsOn: NatGateway
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # PostgreSQL Database Resources
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for Aurora PostgreSQL
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Aurora PostgreSQL
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 10.0.0.0/16
+
+  AuroraCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora-postgresql
+      EngineVersion: 15.4
+      DatabaseName: !Ref DatabaseName
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref DBSecurityGroup
+      Port: 5432
+      BackupRetentionPeriod: 7
+      StorageEncrypted: true
+
+  AuroraInstance1:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: aurora-postgresql
+      DBClusterIdentifier: !Ref AuroraCluster
+      DBInstanceClass: db.r6g.large
+      PubliclyAccessible: false
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda function
+      VpcId: !Ref VPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 10.0.0.0/16
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:PutObject
+                Resource:
+                  - !Sub arn:aws:s3:::${S3Bucket}
+                  - !Sub arn:aws:s3:::${S3Bucket}/*
+                  - arn:aws:s3:::cloudformation-custom-resource-response-*
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref DBSecret
+
+  DataLoadFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - S3VPCEndpoint
+      - NatGateway
+      - PrivateRoute
+    Properties:
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          DB_HOST: !GetAtt AuroraCluster.Endpoint.Address
+          DB_NAME: !Ref DatabaseName
+          DB_SECRET_NAME: !Ref DBSecret
+          S3_BUCKET: !Ref S3Bucket
+      Runtime: python3.9
+      Timeout: 900
+      MemorySize: 512
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import time
+          import pandas as pd
+          from botocore.exceptions import ClientError
+          import urllib.request
+          import sys
+          import subprocess
+          import importlib.util
+          import urllib3
+          import cfnresponse
+          http = urllib3.PoolManager()
+ 
+          # Install psycopg2-binary package at runtime
+          def install_and_import_psycopg2():
+              subprocess.check_call([sys.executable, "-m", "pip", "install", "psycopg2-binary", "-t", "/tmp/"])
+              sys.path.append('/tmp/')
+              global psycopg2
+              import psycopg2
+              return psycopg2
+
+          def get_secret():
+              secret_name = os.environ['DB_SECRET_NAME']
+              region_name = os.environ['AWS_REGION']
+              session = boto3.session.Session()
+              client = session.client(
+                  service_name='secretsmanager',
+                  region_name=region_name
+              )
+              try:
+                  get_secret_value_response = client.get_secret_value(
+                      SecretId=secret_name
+                  )
+              except ClientError as e:
+                  raise e
+              else:
+                  if 'SecretString' in get_secret_value_response:
+                      secret = json.loads(get_secret_value_response['SecretString'])
+                      return secret
+
+          def get_db_connection():
+              # Import psycopg2 dynamically
+              psycopg2 = install_and_import_psycopg2()
+              
+              secrets = get_secret()
+              conn = psycopg2.connect(
+                  host=os.environ['DB_HOST'],
+                  database=os.environ['DB_NAME'],
+                  user=secrets['username'],
+                  password=secrets['password']
+              )
+              return conn
+
+          def create_tables(conn):
+              with conn.cursor() as cur:
+                  # Create patients table
+                  cur.execute("""
+                      CREATE TABLE IF NOT EXISTS patients (
+                          patient_id SERIAL PRIMARY KEY,
+                          name VARCHAR(100) NOT NULL,
+                          birth_date DATE NOT NULL,
+                          gender CHAR(1) CHECK (gender IN ('M', 'F')),
+                          insurance_type VARCHAR(50),
+                          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                      );
+
+                      COMMENT ON TABLE patients IS '환자 정보를 저장하는 테이블';
+                      COMMENT ON COLUMN patients.patient_id IS '환자 고유 식별자 (자동증가)';
+                      COMMENT ON COLUMN patients.name IS '환자 이름';
+                      COMMENT ON COLUMN patients.birth_date IS '생년월일';
+                      COMMENT ON COLUMN patients.gender IS '성별 (M: 남성, F: 여성)';
+                      COMMENT ON COLUMN patients.insurance_type IS '보험 유형 (국민건강보험, 의료급여, 자보 등)';
+                      COMMENT ON COLUMN patients.created_at IS '레코드 생성 시간';
+                  """)
+
+                  # Create medical_records table
+                  cur.execute("""
+                      CREATE TABLE IF NOT EXISTS medical_records (
+                          record_id SERIAL PRIMARY KEY,
+                          patient_id INTEGER NOT NULL,
+                          visit_date DATE NOT NULL,
+                          diagnosis_code VARCHAR(10) NOT NULL,
+                          diagnosis_name VARCHAR(200) NOT NULL,
+                          diagnosis_cause VARCHAR(300),
+                          doctor_name VARCHAR(100) NOT NULL,
+                          treatment TEXT,
+                          notes TEXT,
+                          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                          FOREIGN KEY (patient_id) REFERENCES patients(patient_id)
+                      );
+
+                      COMMENT ON TABLE medical_records IS '환자의 진료 기록을 저장하는 테이블';
+                      COMMENT ON COLUMN medical_records.record_id IS '진료기록 고유 식별자 (자동증가)';
+                      COMMENT ON COLUMN medical_records.patient_id IS '환자 ID (외래키)';
+                      COMMENT ON COLUMN medical_records.visit_date IS '진료 날짜';
+                      COMMENT ON COLUMN medical_records.diagnosis_code IS 'KCD 진단 코드';
+                      COMMENT ON COLUMN medical_records.diagnosis_name IS '진단명';
+                      COMMENT ON COLUMN medical_records.diagnosis_cause IS '진단 원인 또는 유발 요인';
+                      COMMENT ON COLUMN medical_records.doctor_name IS '담당 의사명';
+                      COMMENT ON COLUMN medical_records.treatment IS '치료 내용';
+                      COMMENT ON COLUMN medical_records.notes IS '진료 메모';
+                      COMMENT ON COLUMN medical_records.created_at IS '레코드 생성 시간';
+                  """)
+                  conn.commit()
+
+          def lambda_handler(event, context):
+              try:
+                  print(f"Received event: {json.dumps(event)}")
+                  
+                  if event.get('RequestType') == 'Delete':
+                      print("Delete request received, sending success response")
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Message': 'Data loaded successfully'})
+                      return {
+                          'StatusCode': 200,
+                          'Body': json.dumps('Delete request processed')
+                      }
+                  
+                  # Connect to database and create tables
+                  conn = get_db_connection()
+                  create_tables(conn)
+                  conn.close() 
+                  
+                  # Send success response to CloudFormation
+                  print("Tables created successfully, sending success response to CloudFormation")
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {'Message': 'Tables created successfully'})
+
+                  return {
+                      'StatusCode': 200,
+                      'Body': json.dumps('Tables created successfully')
+                  }
+
+              except Exception as e:
+                  print(f"Error: {str(e)}")
+                  print(f"Error type: {type(e)}")
+                  import traceback
+                  print(traceback.format_exc())
+                  
+                  # Send failure response to CloudFormation
+                  print("Sending failure response to CloudFormation")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": str(e)})
+                  
+                  return {
+                      'StatusCode': 500,
+                      'Body': json.dumps(f'Error: {str(e)}')
+                  }
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+      Layers:
+        - !FindInMap [RegionMap, !Ref "AWS::Region", PandasLayer]
+
+  DBSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${AWS::StackName}/db-credentials
+      Description: Aurora PostgreSQL database credentials
+      SecretString: !Sub '{"username": "${DBUsername}", "password": "${DBPassword}"}'
+
+  # S3 Resources
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-${AWS::AccountId}-${AWS::Region}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFormationReadAccess
+            Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action:
+              - s3:GetObject
+            Resource: !Sub arn:aws:s3:::${S3Bucket}/*
+          - Sid: AllowLambdaAccess
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt LambdaExecutionRole.Arn
+            Action:
+              - s3:PutObject
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - !Sub arn:aws:s3:::${S3Bucket}
+              - !Sub arn:aws:s3:::${S3Bucket}/*
+
+  LoadDataToDatabase:
+    Type: Custom::LoadData
+    DependsOn:
+      - AuroraInstance1
+      - DataLoadFunction
+    Properties:
+      ServiceToken: !GetAtt DataLoadFunction.Arn
+
+Outputs:
+  AuroraClusterEndpoint:
+    Description: Aurora PostgreSQL Cluster Endpoint
+    Value: !GetAtt AuroraCluster.Endpoint.Address
+
+  DatabaseName:
+    Description: Aurora PostgreSQL Database Name
+    Value: !Ref DatabaseName
+
+  SecretName:
+    Description: Name of the secret storing database credentials
+    Value: !Ref DBSecret
+
+  S3BucketName:
+    Description: S3 Bucket for data storage
+    Value: !Ref S3Bucket
+    
+  VPC:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${AWS::StackName}-VPC"
+
+  PublicSubnet1:
+    Description: Public Subnet 1 ID
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicSubnet1"
+
+  PublicSubnet2:
+    Description: Public Subnet 2 ID
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicSubnet2"
+
+  PrivateSubnet1:
+    Description: Private Subnet 1 ID
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateSubnet1"
+
+  PrivateSubnet2:
+    Description: Private Subnet 2 ID
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateSubnet2"
