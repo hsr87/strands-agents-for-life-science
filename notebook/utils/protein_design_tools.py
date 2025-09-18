@@ -7,6 +7,56 @@ from typing import Dict, Any, Optional
 from strands import tool
 from urllib.parse import urlparse
 
+# Global configuration that can be set from notebook
+_STACK_CONFIG = {}
+
+def set_stack_config(stack_name: str, workflow_id: str = None, role_arn: str = None, s3_bucket: str = None):
+    """Set the stack configuration for the tools"""
+    global _STACK_CONFIG
+    _STACK_CONFIG = {
+        'stack_name': stack_name,
+        'workflow_id': workflow_id,
+        'role_arn': role_arn,
+        's3_bucket': s3_bucket
+    }
+
+def _get_stack_outputs():
+    """Get configuration from CloudFormation stack outputs"""
+    try:
+        # Use global config if available, otherwise environment variable or default
+        stack_name = _STACK_CONFIG.get('stack_name') or os.environ.get('STACK_NAME', 'pppp')
+        
+        cf_client = boto3.client('cloudformation')
+        stack_detail = cf_client.describe_stacks(StackName=stack_name)
+        outputs = stack_detail['Stacks'][0].get('Outputs', [])
+        
+        config = {'s3_bucket': 'asadrad-multimodal-us-east-1'}  # Default bucket
+        for output in outputs:
+            key = output['OutputKey']
+            if key == 'WorkflowId':
+                config['workflow_id'] = output['OutputValue']
+            elif key == 'WorkflowExecutionRoleArn':
+                config['role_arn'] = output['OutputValue']
+        
+        # Override with global config if set
+        if _STACK_CONFIG.get('workflow_id'):
+            config['workflow_id'] = _STACK_CONFIG['workflow_id']
+        if _STACK_CONFIG.get('role_arn'):
+            config['role_arn'] = _STACK_CONFIG['role_arn']
+        if _STACK_CONFIG.get('s3_bucket'):
+            config['s3_bucket'] = _STACK_CONFIG['s3_bucket']
+        
+        return config
+    except Exception as e:
+        print(f"Error getting stack outputs: {e}")
+        return {}
+
+@tool
+def test_configuration() -> str:
+    """Test the configuration retrieval"""
+    stack_config = _get_stack_outputs()
+    return f"Stack config: {stack_config}"
+
 @tool
 def trigger_aho_workflow(
     seed_sequence: str,
@@ -37,10 +87,11 @@ def trigger_aho_workflow(
         String with workflow run information
     """
     try:
-        # Get configuration from environment or globals
-        DEFAULT_WORKFLOW_ID = os.environ.get('DEFAULT_WORKFLOW_ID', '1024576')
-        DEFAULT_ROLE_ARN = os.environ.get('DEFAULT_ROLE_ARN', 'arn:aws:iam::664263524008:role/protein-design-stack-WorkflowExecutionRole-QppAFVfXxcAy')
-        DEFAULT_S3_BUCKET = os.environ.get('DEFAULT_S3_BUCKET', 'protein-c776afefa57d4cc09a98ec589dd3376a')
+        # Get configuration from CloudFormation stack or environment
+        stack_config = _get_stack_outputs()
+        DEFAULT_WORKFLOW_ID = stack_config.get('workflow_id')
+        DEFAULT_ROLE_ARN = stack_config.get('role_arn')
+        DEFAULT_S3_BUCKET = stack_config.get('s3_bucket')
         
         # Get AWS account and region info
         sts_client = boto3.client('sts')
@@ -68,13 +119,13 @@ def trigger_aho_workflow(
         container_image = f"{account_id}.dkr.ecr.{region}.amazonaws.com/protein-design-evoprotgrad:latest"
         
         # Generate unique run name if not provided
-        run_name = runName or f"workflow-run-{uuid.uuid4().hex[:8]}"
+        run_name = f"workflow-run-{uuid.uuid4().hex[:8]}"
         
         # Use default S3 output location if not provided
-        output_uri = outputUri or f"s3://{DEFAULT_S3_BUCKET}/outputs/{run_name}/"
+        output_uri = f"s3://{DEFAULT_S3_BUCKET}/outputs/{run_name}/"
         
         # Get all workflow parameters with defaults
-        esm_files = esm_model_files or f"s3://{DEFAULT_S3_BUCKET}/models/esm2_t6_8M_UR50D/"
+        esm_files = f"s3://{DEFAULT_S3_BUCKET}/models/esm2_t6_8M_UR50D/"
         out_type = output_type or "all"
         
         # Convert numeric parameters
