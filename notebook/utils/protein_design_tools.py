@@ -125,7 +125,7 @@ def trigger_aho_workflow(
         output_uri = f"s3://{DEFAULT_S3_BUCKET}/outputs/{run_name}/"
         
         # Get all workflow parameters with defaults
-        esm_files = f"s3://{DEFAULT_S3_BUCKET}/models/esm2_t6_8M_UR50D/"
+        esm_files = esm_model_files or f"s3://{DEFAULT_S3_BUCKET}/models/esm2_t6_8M_UR50D/"
         out_type = output_type or "all"
         
         # Convert numeric parameters
@@ -147,12 +147,11 @@ def trigger_aho_workflow(
         # Prepare workflow parameters
         workflow_parameters = {
             "container_image": container_image,
-            "seed_sequence": seed_sequence.upper()
+            "seed_sequence": seed_sequence.upper(),
+            "esm_model_files": esm_files  # Pass S3 path to workflow
         }
         
         # Add optional parameters
-        if esm_files:
-            workflow_parameters["esm_model_files"] = esm_files
         if onehotcnn_model_files:
             workflow_parameters["onehotcnn_model_files"] = onehotcnn_model_files
             
