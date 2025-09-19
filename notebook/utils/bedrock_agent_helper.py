@@ -184,7 +184,7 @@ class AgentsForAmazonBedrock:
         """Returns the region for this instance."""
         return self._region
 
-    def _create_lambda_iam_role(
+    def create_lambda_iam_role(
             self,
             agent_name: str,
             additional_function_iam_policy: Dict = None,
@@ -440,7 +440,7 @@ class AgentsForAmazonBedrock:
         _instructions = _get_agent_resp["agent"]["instruction"]
         return _instructions
 
-    def _allow_agent_lambda(self, agent_id: str, lambda_function_name: str) -> None:
+    def allow_agent_lambda(self, agent_id: str, lambda_function_name: str) -> None:
         """Allows the specified Agent to invoke the specified Lambda function by adding the appropriate permission.
 
         Args:
@@ -456,7 +456,7 @@ class AgentsForAmazonBedrock:
             SourceArn=f"arn:aws:bedrock:{self._region}:{self._account_id}:agent/{agent_id}",
         )
 
-    def _make_agent_string(self, agent_arns: List[str] = None) -> str:
+    def make_agent_string(self, agent_arns: List[str] = None) -> str:
         """Makes a comma separated string of agent ids from a list of agent ARNs.
 
         Args:
@@ -508,7 +508,7 @@ class AgentsForAmazonBedrock:
         if sub_agent_arns:
             env_variables = {
                 "Variables": {
-                    'SUB_AGENT_IDS': self._make_agent_string(sub_agent_arns)
+                    'SUB_AGENT_IDS': self.make_agent_string(sub_agent_arns)
                 }
             }
         else:
@@ -519,7 +519,7 @@ class AgentsForAmazonBedrock:
             
         if dynamo_args:
             # add DynamoDB Table permissions to the Lambda Function
-            lambda_role = self._create_lambda_iam_role(
+            lambda_role = self.create_lambda_iam_role(
                 agent_name, sub_agent_arns, dynamodb_table_name=dynamo_args[0]
             )
             # create DynamoDB Table to be used on Lambda Code
@@ -532,7 +532,7 @@ class AgentsForAmazonBedrock:
             env_variables['Variables']['dynamodb_pk'] = dynamo_args[1]
             env_variables['Variables']['dynamodb_sk'] = dynamo_args[2]
         else:
-            lambda_role = self._create_lambda_iam_role(
+            lambda_role = self.create_lambda_iam_role(
                 agent_name, sub_agent_arns
             )
 
@@ -548,7 +548,7 @@ class AgentsForAmazonBedrock:
             Environment=env_variables
         )
 
-        self._allow_agent_lambda(_agent_id, lambda_function_name)
+        self.allow_agent_lambda(_agent_id, lambda_function_name)
 
         return _lambda_function["FunctionArn"]
 
@@ -726,7 +726,7 @@ class AgentsForAmazonBedrock:
 
         return
 
-    def _create_agent_role(
+    def create_agent_role(
             self,
             agent_name: str,
             agent_foundation_models: List[str],
@@ -993,7 +993,7 @@ class AgentsForAmazonBedrock:
         if verbose:
             print(f"Creating agent: {agent_name}...")
 
-        _role_arn = self._create_agent_role(agent_name, model_ids, kb_arns, reuse_default=True,
+        _role_arn = self.create_agent_role(agent_name, model_ids, kb_arns, reuse_default=True,
                                             verbose=False)
         _model_id = model_ids[0]
 
@@ -1344,11 +1344,11 @@ class AgentsForAmazonBedrock:
             supervisor_instructions += (
                 ". You also can take advantage of your available knowledge base."
             )
-            _supervisor_role_arn = self._create_agent_role(
+            _supervisor_role_arn = self.create_agent_role(
                 supervisor_agent_name, model_ids, [kb_arn]
             )
         else:
-            _supervisor_role_arn = self._create_agent_role(
+            _supervisor_role_arn = self.create_agent_role(
                 supervisor_agent_name, model_ids
             )
 
@@ -1397,7 +1397,7 @@ class AgentsForAmazonBedrock:
 
         return _function_defs, _supervisor_agent_arn
 
-    def _make_fully_cited_answer(
+    def make_fully_cited_answer(
             self, orig_agent_answer, event, enable_trace=False, trace_level="none"
     ):
         _citations = event.get("chunk", {}).get("attribution", {}).get("citations", [])
@@ -1561,7 +1561,7 @@ class AgentsForAmazonBedrock:
                 elif 'chunk' in _event:
                     _data = _event['chunk']['bytes']
                     _agent_answer = _data.decode('utf8')
-                    _agent_answer = self._make_fully_cited_answer(_agent_answer, _event, enable_trace, trace_level)
+                    _agent_answer = self.make_fully_cited_answer(_agent_answer, _event, enable_trace, trace_level)
 
                 if 'trace' in _event and enable_trace:
                     if trace_level == "all":

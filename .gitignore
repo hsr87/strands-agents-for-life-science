@@ -205,3 +205,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+ref_code
+claude.md
+.venv
+*.DS_Store
+.vscode/

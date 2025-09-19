@@ -7,24 +7,22 @@ from typing import Dict, Any, Optional
 from strands import tool
 from urllib.parse import urlparse
 
-# Global configuration that can be set from notebook
-_STACK_CONFIG = {}
+STACK_CONFIG = {}
 
 def set_stack_config(stack_name: str, workflow_id: str = None, role_arn: str = None, s3_bucket: str = None):
     """Set the stack configuration for the tools"""
-    global _STACK_CONFIG
-    _STACK_CONFIG = {
+    global STACK_CONFIG
+    STACK_CONFIG = {
         'stack_name': stack_name,
         'workflow_id': workflow_id,
         'role_arn': role_arn,
         's3_bucket': s3_bucket
     }
 
-def _get_stack_outputs():
+def get_stack_outputs():
     """Get configuration from CloudFormation stack outputs"""
     try:
-        # Use global config if available, otherwise environment variable or default
-        stack_name = _STACK_CONFIG.get('stack_name') or os.environ.get('STACK_NAME', 'protein-')
+        stack_name = STACK_CONFIG.get('stack_name') or os.environ.get('STACK_NAME', 'protein-')
         
         cf_client = boto3.client('cloudformation')
         stack_detail = cf_client.describe_stacks(StackName=stack_name)
@@ -39,12 +37,12 @@ def _get_stack_outputs():
                 config['role_arn'] = output['OutputValue']
         
         # Override with global config if set
-        if _STACK_CONFIG.get('workflow_id'):
-            config['workflow_id'] = _STACK_CONFIG['workflow_id']
-        if _STACK_CONFIG.get('role_arn'):
-            config['role_arn'] = _STACK_CONFIG['role_arn']
-        if _STACK_CONFIG.get('s3_bucket'):
-            config['s3_bucket'] = _STACK_CONFIG['s3_bucket']
+        if STACK_CONFIG.get('workflow_id'):
+            config['workflow_id'] = STACK_CONFIG['workflow_id']
+        if STACK_CONFIG.get('role_arn'):
+            config['role_arn'] = STACK_CONFIG['role_arn']
+        if STACK_CONFIG.get('s3_bucket'):
+            config['s3_bucket'] = STACK_CONFIG['s3_bucket']
         
         return config
     except Exception as e:
@@ -54,7 +52,7 @@ def _get_stack_outputs():
 @tool
 def test_configuration() -> str:
     """Test the configuration retrieval"""
-    stack_config = _get_stack_outputs()
+    stack_config = get_stack_outputs()
     return f"Stack config: {stack_config}"
 
 @tool
@@ -88,7 +86,7 @@ def trigger_aho_workflow(
     """
     try:
         # Get configuration from CloudFormation stack or environment
-        stack_config = _get_stack_outputs()
+        stack_config = get_stack_outputs()
         DEFAULT_WORKFLOW_ID = stack_config.get('workflow_id')
         DEFAULT_ROLE_ARN = stack_config.get('role_arn')
         DEFAULT_S3_BUCKET = stack_config.get('s3_bucket')
