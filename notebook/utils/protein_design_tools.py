@@ -24,7 +24,7 @@ def _get_stack_outputs():
     """Get configuration from CloudFormation stack outputs"""
     try:
         # Use global config if available, otherwise environment variable or default
-        stack_name = _STACK_CONFIG.get('stack_name') or os.environ.get('STACK_NAME', 'pppp')
+        stack_name = _STACK_CONFIG.get('stack_name') or os.environ.get('STACK_NAME', 'protein-')
         
         cf_client = boto3.client('cloudformation')
         stack_detail = cf_client.describe_stacks(StackName=stack_name)
@@ -125,7 +125,8 @@ def trigger_aho_workflow(
         output_uri = f"s3://{DEFAULT_S3_BUCKET}/outputs/{run_name}/"
         
         # Get all workflow parameters with defaults
-        esm_files = esm_model_files or f"s3://{DEFAULT_S3_BUCKET}/models/esm2_t33_650M_UR50D"
+        #esm_files = esm_model_files or f"s3://{DEFAULT_S3_BUCKET}/models/esm2_t33_650M_UR50D"
+        esm_files = f"s3://{DEFAULT_S3_BUCKET}/models/esm2_t33_650M_UR50D/"
         out_type = output_type or "all"
         
         # Convert numeric parameters
