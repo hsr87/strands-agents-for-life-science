@@ -64,7 +64,7 @@ Resources:
             Action:
             - bedrock:InvokeModel
             Resource: 
-              - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v2:0'
+              - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v1'
             Sid: BedrockInvokeModelStatement
       - PolicyName: OSSPolicy
         PolicyDocument:
@@ -368,7 +368,7 @@ Resources:
       KnowledgeBaseConfiguration:
         Type: VECTOR
         VectorKnowledgeBaseConfiguration:
-          EmbeddingModelArn: !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v2:0'
+          EmbeddingModelArn: !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v1'
       RoleArn: !GetAtt BedrockKBExecutionRole.Arn
       StorageConfiguration:
         Type: OPENSEARCH_SERVERLESS
