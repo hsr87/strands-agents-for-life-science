@@ -1,0 +1,121 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Strands Agents Workshop - Quick Start Template for AWS Workshop Studio Event Engine'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Workshop Configuration"
+        Parameters:
+          - WorkshopMode
+      - Label:
+          default: "Database Configuration (Auto-filled)"
+        Parameters:
+          - DatabaseName
+          - DBUsername
+          - DBPassword
+    ParameterLabels:
+      WorkshopMode:
+        default: "Workshop Deployment Mode"
+      DatabaseName:
+        default: "Database Name"
+      DBUsername:
+        default: "Database Username"
+      DBPassword:
+        default: "Database Password"
+
+Parameters:
+  WorkshopMode:
+    Type: String
+    Default: 'EventEngine'
+    AllowedValues:
+      - 'EventEngine'
+      - 'SelfPaced'
+    Description: 'Select EventEngine for AWS Workshop Studio events, SelfPaced for individual use'
+
+  DatabaseName:
+    Type: String
+    Default: agentdb
+    Description: PostgreSQL database name
+
+  DBUsername:
+    Type: String
+    Default: dbadmin
+    Description: Database username
+
+  DBPassword:
+    Type: String
+    Default: StrandsWorkshop2024!
+    NoEcho: true
+    Description: Database password (minimum 8 characters)
+    MinLength: 8
+
+Conditions:
+  IsEventEngine: !Equals [!Ref WorkshopMode, 'EventEngine']
+
+Resources:
+  # Main workshop stack deployment
+  WorkshopStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://aws-workshop-templates-public.s3.amazonaws.com/strands-agents-life-science/master_stack.yaml
+      Parameters:
+        DatabaseName: !Ref DatabaseName
+        DBUsername: !Ref DBUsername
+        DBPassword: !Ref DBPassword
+        WorkshopUserEmail: !If
+          - IsEventEngine
+          - 'noreply@workshop.aws'
+          - 'workshop-user@example.com'
+        DeploymentNotificationTopic: !Sub 'strands-workshop-${AWS::AccountId}'
+      Tags:
+        - Key: Workshop
+          Value: StrandsAgents
+        - Key: Environment
+          Value: !Ref WorkshopMode
+        - Key: AutoDelete
+          Value: !If [IsEventEngine, 'true', 'false']
+
+  # Workshop status dashboard (Event Engine mode only)
+  WorkshopStatusDashboard:
+    Type: AWS::CloudFormation::Stack
+    Condition: IsEventEngine
+    DependsOn: WorkshopStack
+    Properties:
+      TemplateURL: https://aws-workshop-templates-public.s3.amazonaws.com/strands-agents-life-science/dashboard_stack.yaml
+      Parameters:
+        MasterStackName: !GetAtt WorkshopStack.Outputs.AWS::StackName
+
+Outputs:
+  WorkshopConsoleURL:
+    Description: Workshop Management Console
+    Value: !Sub 'https://console.aws.amazon.com/cloudformation/home?region=${AWS::Region}#/stacks/stackinfo?stackId=${WorkshopStack}'
+
+  DatabaseEndpoint:
+    Description: PostgreSQL Database Endpoint
+    Value: !GetAtt WorkshopStack.Outputs.DatabaseEndpoint
+
+  KnowledgeBaseId:
+    Description: Bedrock Knowledge Base ID
+    Value: !GetAtt WorkshopStack.Outputs.KnowledgeBaseId
+
+  SageMakerStudioURL:
+    Description: SageMaker Studio Console
+    Value: !Sub 'https://console.aws.amazon.com/sagemaker/home?region=${AWS::Region}#/studio'
+
+  WorkshopStatus:
+    Description: Deployment Status
+    Value: !Sub |
+      Deployment started at ${AWS::StackName}
+      Mode: ${WorkshopMode}
+      Region: ${AWS::Region}
+      Account: ${AWS::AccountId}
+
+  NextSteps:
+    Description: Next Steps
+    Value: |
+      1. Wait for stack creation to complete (35-45 minutes)
+      2. Open SageMaker Studio from the console
+      3. Clone the workshop repository:
+         git clone https://github.com/aws-samples/strands-agents-for-life-science.git
+      4. Navigate to notebook directory and start with 00-setup_environment.ipynb

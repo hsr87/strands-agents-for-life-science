@@ -1,0 +1,307 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Strands Agents 워크샵 통합 배포 - 모든 리소스를 한 번에 배포 (마스터 스택)'
+
+Parameters:
+  DatabaseName:
+    Type: String
+    Default: agentdb
+    Description: PostgreSQL 데이터베이스 이름
+  DBUsername:
+    Type: String
+    Default: dbadmin
+    Description: 데이터베이스 사용자명 (admin은 예약어이므로 사용 불가)
+  DBPassword:
+    Type: String
+    Default: StrandsAgent2024!
+    NoEcho: true
+    Description: 데이터베이스 패스워드 (최소 8자)
+    MinLength: 8
+
+  WorkshopUserEmail:
+    Type: String
+    Default: workshop-user@example.com
+    Description: 워크샵 사용자 이메일 (기본값 사용)
+
+  DeploymentNotificationTopic:
+    Type: String
+    Default: strands-workshop-notifications
+    Description: 배포 상태 알림 SNS 토픽명 (내부 모니터링용)
+
+Mappings:
+  RegionMap:
+    us-east-1:
+      PandasLayer: arn:aws:lambda:us-east-1:336392948345:layer:AWSSDKPandas-Python39:11
+      Psycopg2Layer: arn:aws:lambda:us-east-1:898466741470:layer:psycopg2-py39:7
+    us-west-2:
+      PandasLayer: arn:aws:lambda:us-west-2:336392948345:layer:AWSSDKPandas-Python39:11
+      Psycopg2Layer: arn:aws:lambda:us-west-2:898466741470:layer:psycopg2-py39:7
+
+Resources:
+  # 배포 상태 알림용 SNS 토픽
+  DeploymentNotifications:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Ref DeploymentNotificationTopic
+      DisplayName: Strands Workshop 배포 알림
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref WorkshopUserEmail
+
+  # 1단계: 네트워킹 및 PostgreSQL (즉시 시작, 15-20분 소요)
+  PostgreSQLStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://aws-workshop-templates-public.s3.amazonaws.com/strands-agents-life-science/postgres_stack.yaml
+      Parameters:
+        DatabaseName: !Ref DatabaseName
+        DBUsername: !Ref DBUsername
+        DBPassword: !Ref DBPassword
+      NotificationARNs:
+        - !Ref DeploymentNotifications
+      Tags:
+        - Key: WorkshopComponent
+          Value: PostgreSQL
+        - Key: DeploymentOrder
+          Value: "1"
+
+  # 2단계: Knowledge Base (PostgreSQL 완료 후 시작, 10-15분 소요)
+  KnowledgeBaseStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: PostgreSQLStack
+    Properties:
+      TemplateURL: https://aws-workshop-templates-public.s3.amazonaws.com/strands-agents-life-science/kb_stack.yaml
+      Parameters:
+        VPCId: !GetAtt PostgreSQLStack.Outputs.VPCId
+        PrivateSubnet1: !GetAtt PostgreSQLStack.Outputs.PrivateSubnet1
+        PrivateSubnet2: !GetAtt PostgreSQLStack.Outputs.PrivateSubnet2
+      NotificationARNs:
+        - !Ref DeploymentNotifications
+      Tags:
+        - Key: WorkshopComponent
+          Value: KnowledgeBase
+        - Key: DeploymentOrder
+          Value: "2"
+
+  # 3단계: 단백질 설계 환경 (Knowledge Base 완료 후 시작, 10-15분 소요)
+  ProteinDesignStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: KnowledgeBaseStack
+    Properties:
+      TemplateURL: https://aws-workshop-templates-public.s3.amazonaws.com/strands-agents-life-science/protein_design_stack.yaml
+      Parameters:
+        VPCId: !GetAtt PostgreSQLStack.Outputs.VPCId
+        PrivateSubnet1: !GetAtt PostgreSQLStack.Outputs.PrivateSubnet1
+        KnowledgeBaseId: !GetAtt KnowledgeBaseStack.Outputs.KnowledgeBaseId
+      NotificationARNs:
+        - !Ref DeploymentNotifications
+      Tags:
+        - Key: WorkshopComponent
+          Value: ProteinDesign
+        - Key: DeploymentOrder
+          Value: "3"
+
+  # 배포 상태 추적 Lambda 함수
+  DeploymentStatusFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: strands-deployment-status-tracker
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt DeploymentStatusRole.Arn
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref DeploymentNotifications
+          MASTER_STACK_NAME: !Ref AWS::StackName
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import os
+
+          def lambda_handler(event, context):
+              """배포 상태 추적 및 알림"""
+
+              sns = boto3.client('sns')
+              cfn = boto3.client('cloudformation')
+
+              try:
+                  master_stack = os.environ['MASTER_STACK_NAME']
+                  topic_arn = os.environ['SNS_TOPIC_ARN']
+
+                  # 마스터 스택 상태 확인
+                  response = cfn.describe_stacks(StackName=master_stack)
+                  stack_status = response['Stacks'][0]['StackStatus']
+
+                  # 중첩 스택들 상태 확인
+                  nested_stacks = cfn.list_stack_resources(StackName=master_stack)
+
+                  postgres_status = "PENDING"
+                  kb_status = "PENDING"
+                  protein_status = "PENDING"
+
+                  for resource in nested_stacks['StackResourceSummaries']:
+                      if 'PostgreSQL' in resource['LogicalResourceId']:
+                          postgres_status = resource['ResourceStatus']
+                      elif 'KnowledgeBase' in resource['LogicalResourceId']:
+                          kb_status = resource['ResourceStatus']
+                      elif 'ProteinDesign' in resource['LogicalResourceId']:
+                          protein_status = resource['ResourceStatus']
+
+                  # 상태 메시지 생성
+                  message = f"""
+🚀 Strands Agents 워크샵 배포 상태 업데이트
+
+📊 전체 진행상황:
+• PostgreSQL & 네트워킹: {postgres_status}
+• Knowledge Base: {kb_status}
+• 단백질 설계 환경: {protein_status}
+
+⏱️ 다음 단계:
+{get_next_steps(postgres_status, kb_status, protein_status)}
+
+🔗 진행하면서 확인하세요:
+AWS 콘솔 > CloudFormation > {master_stack}
+                  """
+
+                  sns.publish(
+                      TopicArn=topic_arn,
+                      Subject='워크샵 배포 상태 업데이트',
+                      Message=message
+                  )
+
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps({
+                          'postgres': postgres_status,
+                          'knowledgebase': kb_status,
+                          'protein': protein_status
+                      })
+                  }
+
+              except Exception as e:
+                  print(f"Error: {e}")
+                  return {
+                      'statusCode': 500,
+                      'body': json.dumps({'error': str(e)})
+                  }
+
+          def get_next_steps(postgres, kb, protein):
+              """다음 단계 안내"""
+              if postgres == "CREATE_COMPLETE" and kb == "CREATE_COMPLETE" and protein == "CREATE_COMPLETE":
+                  return "✅ 모든 배포 완료! 실습 2로 진행하세요."
+              elif postgres == "CREATE_COMPLETE" and kb == "CREATE_COMPLETE":
+                  return "⏳ 단백질 설계 환경 배포 중... 실습 1 완료 후 실습 2 시작 가능"
+              elif postgres == "CREATE_COMPLETE":
+                  return "⏳ Knowledge Base 배포 중... 실습 1을 계속 진행하세요"
+              else:
+                  return "⏳ PostgreSQL 배포 중... 실습 1을 시작하세요"
+
+  # Lambda 실행 역할
+  DeploymentStatusRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DeploymentStatusPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:ListStackResources
+                  - sns:Publish
+                Resource: '*'
+
+  # 배포 상태 모니터링 EventBridge 규칙
+  DeploymentMonitorRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: strands-deployment-monitor
+      Description: CloudFormation 스택 상태 변경 모니터링
+      EventPattern:
+        source:
+          - aws.cloudformation
+        detail-type:
+          - CloudFormation Stack Status Change
+        detail:
+          stack-id:
+            - !Ref AWS::StackId
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt DeploymentStatusFunction.Arn
+          Id: DeploymentStatusTarget
+
+  # EventBridge가 Lambda를 호출할 수 있는 권한
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DeploymentStatusFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DeploymentMonitorRule.Arn
+
+Outputs:
+  # PostgreSQL 관련 출력
+  DatabaseEndpoint:
+    Description: PostgreSQL 데이터베이스 엔드포인트
+    Value: !GetAtt PostgreSQLStack.Outputs.DatabaseEndpoint
+    Export:
+      Name: !Sub "${AWS::StackName}-DatabaseEndpoint"
+
+  VPCId:
+    Description: 생성된 VPC ID
+    Value: !GetAtt PostgreSQLStack.Outputs.VPCId
+    Export:
+      Name: !Sub "${AWS::StackName}-VPCId"
+
+  # Knowledge Base 관련 출력
+  KnowledgeBaseId:
+    Description: Bedrock Knowledge Base ID
+    Value: !GetAtt KnowledgeBaseStack.Outputs.KnowledgeBaseId
+    Export:
+      Name: !Sub "${AWS::StackName}-KnowledgeBaseId"
+
+  # 단백질 설계 관련 출력
+  ProteinWorkflowId:
+    Description: HealthOmics 워크플로우 ID
+    Value: !GetAtt ProteinDesignStack.Outputs.ProteinWorkflowId
+    Export:
+      Name: !Sub "${AWS::StackName}-ProteinWorkflowId"
+
+  # 배포 상태 추적
+  DeploymentStatusFunction:
+    Description: 배포 상태 추적 Lambda 함수
+    Value: !Ref DeploymentStatusFunction
+
+  SNSTopicArn:
+    Description: 배포 알림 SNS 토픽
+    Value: !Ref DeploymentNotifications
+
+  # 워크샵 진행 안내
+  WorkshopInstructions:
+    Description: 워크샵 진행 방법
+    Value: |
+      🚀 배포가 시작되었습니다!
+
+      📧 이메일로 배포 상태를 확인하세요
+      📓 지금 바로 실습 1(환경 설정)을 시작하세요
+      ⏱️ 실습 1 완료 시점에 모든 인프라가 준비됩니다
+
+      다음 단계:
+      1. SageMaker Studio 접속
+      2. GitHub 코드 클론
+      3. 00-setup_environment.ipynb 실행
+      4. 배포 완료 이메일 확인 후 실습 2 진행
+
+  EstimatedCompletionTime:
+    Description: 예상 완료 시간
+    Value: "35-45분 (PostgreSQL 20분 + Knowledge Base 15분 + 단백질 환경 10분)"

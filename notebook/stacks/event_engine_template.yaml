@@ -1,0 +1,326 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS Workshop Studio Event Engine Auto-Deployment Template for Strands Agents Workshop'
+
+# This template is automatically deployed when a Workshop Studio event account is created
+# It sets up all necessary infrastructure for the Strands Agents for Life Science workshop
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Auto-configured for Workshop Studio"
+        Parameters:
+          - AutoDeploy
+
+Parameters:
+  AutoDeploy:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: 'Automatically deploy all workshop resources on stack creation'
+
+Conditions:
+  ShouldAutoDeploy: !Equals [!Ref AutoDeploy, 'true']
+
+Resources:
+  # IAM Role for workshop automation
+  WorkshopAutomationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'strands-workshop-automation-${AWS::AccountId}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - events.amazonaws.com
+                - cloudformation.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/PowerUserAccess
+      Tags:
+        - Key: Workshop
+          Value: StrandsAgents
+        - Key: AutoManaged
+          Value: 'true'
+
+  # Lambda function for initial setup
+  WorkshopSetupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: strands-workshop-auto-setup
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt WorkshopAutomationRole.Arn
+      Timeout: 900
+      MemorySize: 1024
+      Environment:
+        Variables:
+          WORKSHOP_REGION: !Ref AWS::Region
+          WORKSHOP_ACCOUNT: !Ref AWS::AccountId
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import os
+          import time
+          import cfnresponse
+
+          def lambda_handler(event, context):
+              """
+              Automatically sets up the Strands Agents workshop infrastructure
+              """
+
+              try:
+                  # Only run on CREATE
+                  if event['RequestType'] != 'Create':
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+                      return
+
+                  region = os.environ['WORKSHOP_REGION']
+                  account_id = os.environ['WORKSHOP_ACCOUNT']
+
+                  # Initialize AWS clients
+                  bedrock = boto3.client('bedrock', region_name=region)
+                  cfn = boto3.client('cloudformation', region_name=region)
+                  ssm = boto3.client('ssm', region_name=region)
+                  sagemaker = boto3.client('sagemaker', region_name=region)
+                  s3 = boto3.client('s3', region_name=region)
+
+                  print(f"Starting workshop setup for account {account_id} in {region}")
+
+                  # Step 1: Enable Bedrock models
+                  print("Enabling Bedrock models...")
+                  models_to_enable = [
+                      'amazon.titan-embed-text-v1',
+                      'anthropic.claude-3-5-sonnet-20240620-v1:0',
+                      'anthropic.claude-3-sonnet-20240229-v1:0'
+                  ]
+
+                  for model_id in models_to_enable:
+                      try:
+                          bedrock.put_foundation_model_entitlement(
+                              modelId=model_id,
+                              status='ACTIVE'
+                          )
+                          print(f"✓ Enabled model: {model_id}")
+                      except Exception as e:
+                          print(f"Note: {model_id} - {str(e)}")
+
+                  # Step 2: Deploy main workshop stack
+                  print("Deploying workshop infrastructure stack...")
+
+                  stack_name = f'strands-workshop-main-{int(time.time())}'
+                  template_url = 'https://aws-workshop-templates-public.s3.amazonaws.com/strands-agents-life-science/master_stack.yaml'
+
+                  # Generate secure password
+                  import secrets
+                  import string
+                  alphabet = string.ascii_letters + string.digits
+                  db_password = ''.join(secrets.choice(alphabet) for i in range(16))
+
+                  # Create the main stack
+                  cfn.create_stack(
+                      StackName=stack_name,
+                      TemplateURL=template_url,
+                      Parameters=[
+                          {'ParameterKey': 'DatabaseName', 'ParameterValue': 'agentdb'},
+                          {'ParameterKey': 'DBUsername', 'ParameterValue': 'dbadmin'},
+                          {'ParameterKey': 'DBPassword', 'ParameterValue': db_password},
+                          {'ParameterKey': 'WorkshopUserEmail', 'ParameterValue': 'noreply@workshop.aws'},
+                          {'ParameterKey': 'DeploymentNotificationTopic', 'ParameterValue': 'strands-notifications'}
+                      ],
+                      Capabilities=['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'],
+                      Tags=[
+                          {'Key': 'Workshop', 'Value': 'StrandsAgents'},
+                          {'Key': 'AutoDeployed', 'Value': 'true'},
+                          {'Key': 'Environment', 'Value': 'EventEngine'}
+                      ]
+                  )
+
+                  print(f"✓ Stack deployment initiated: {stack_name}")
+
+                  # Step 3: Store credentials in Parameter Store
+                  print("Storing workshop credentials...")
+
+                  ssm.put_parameter(
+                      Name='/workshop/strands/db_password',
+                      Value=db_password,
+                      Type='SecureString',
+                      Overwrite=True
+                  )
+
+                  ssm.put_parameter(
+                      Name='/workshop/strands/stack_name',
+                      Value=stack_name,
+                      Type='String',
+                      Overwrite=True
+                  )
+
+                  ssm.put_parameter(
+                      Name='/workshop/strands/setup_status',
+                      Value='DEPLOYING',
+                      Type='String',
+                      Overwrite=True
+                  )
+
+                  print("✓ Credentials stored securely")
+
+                  # Step 4: Check/Create SageMaker Studio Domain
+                  print("Setting up SageMaker Studio...")
+
+                  try:
+                      domains = sagemaker.list_domains()
+                      if not domains['Domains']:
+                          # Create new domain
+                          print("Creating SageMaker Studio domain...")
+
+                          # Get default VPC
+                          ec2 = boto3.client('ec2', region_name=region)
+                          vpcs = ec2.describe_vpcs(Filters=[{'Name': 'is-default', 'Values': ['true']}])
+
+                          if vpcs['Vpcs']:
+                              vpc_id = vpcs['Vpcs'][0]['VpcId']
+                              subnets = ec2.describe_subnets(
+                                  Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
+                              )
+                              subnet_ids = [s['SubnetId'] for s in subnets['Subnets'][:2]]
+
+                              # Create execution role
+                              iam = boto3.client('iam')
+                              role_name = 'SageMakerStudioRole-Workshop'
+
+                              try:
+                                  iam.create_role(
+                                      RoleName=role_name,
+                                      AssumeRolePolicyDocument=json.dumps({
+                                          "Version": "2012-10-17",
+                                          "Statement": [{
+                                              "Effect": "Allow",
+                                              "Principal": {"Service": "sagemaker.amazonaws.com"},
+                                              "Action": "sts:AssumeRole"
+                                          }]
+                                      })
+                                  )
+
+                                  iam.attach_role_policy(
+                                      RoleName=role_name,
+                                      PolicyArn='arn:aws:iam::aws:policy/AmazonSageMakerFullAccess'
+                                  )
+
+                                  time.sleep(10)  # Wait for role to be available
+                              except:
+                                  pass  # Role might already exist
+
+                              role_arn = f'arn:aws:iam::{account_id}:role/{role_name}'
+
+                              # Create domain
+                              sagemaker.create_domain(
+                                  DomainName='strands-workshop-domain',
+                                  AuthMode='IAM',
+                                  DefaultUserSettings={'ExecutionRole': role_arn},
+                                  VpcId=vpc_id,
+                                  SubnetIds=subnet_ids
+                              )
+
+                              print("✓ SageMaker Studio domain created")
+                      else:
+                          print("✓ SageMaker Studio domain already exists")
+                  except Exception as e:
+                      print(f"Note: SageMaker Studio setup - {str(e)}")
+
+                  # Step 5: Create S3 bucket for workshop materials
+                  print("Creating workshop materials bucket...")
+
+                  bucket_name = f'strands-workshop-{account_id}-{region}'
+                  try:
+                      if region == 'us-east-1':
+                          s3.create_bucket(Bucket=bucket_name)
+                      else:
+                          s3.create_bucket(
+                              Bucket=bucket_name,
+                              CreateBucketConfiguration={'LocationConstraint': region}
+                          )
+
+                      # Enable versioning
+                      s3.put_bucket_versioning(
+                          Bucket=bucket_name,
+                          VersioningConfiguration={'Status': 'Enabled'}
+                      )
+
+                      print(f"✓ Created bucket: {bucket_name}")
+                  except Exception as e:
+                      print(f"Note: Bucket creation - {str(e)}")
+
+                  # Return success with outputs
+                  response_data = {
+                      'StackName': stack_name,
+                      'Region': region,
+                      'BucketName': bucket_name,
+                      'Status': 'DEPLOYMENT_INITIATED',
+                      'Message': 'Workshop infrastructure deployment started. Full deployment takes 35-45 minutes.'
+                  }
+
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data)
+
+              except Exception as e:
+                  print(f"Error: {str(e)}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {
+                      'Error': str(e)
+                  })
+
+  # Custom resource to trigger setup
+  WorkshopSetupTrigger:
+    Type: Custom::WorkshopSetup
+    Condition: ShouldAutoDeploy
+    Properties:
+      ServiceToken: !GetAtt WorkshopSetupFunction.Arn
+
+  # CloudWatch Dashboard for workshop monitoring
+  WorkshopDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: strands-workshop-status
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "text",
+              "properties": {
+                "markdown": "# 🧬 Strands Agents Workshop Status\n\n## Deployment Progress\n\n- ✅ **Event Engine Setup**: Complete\n- ⏳ **Infrastructure Stack**: Deploying (35-45 min)\n- ⏳ **SageMaker Studio**: Configuring\n- ⏳ **Workshop Materials**: Preparing\n\n## Quick Links\n\n- [CloudFormation Console](https://console.aws.amazon.com/cloudformation/home?region=${AWS::Region})\n- [SageMaker Studio](https://console.aws.amazon.com/sagemaker/home?region=${AWS::Region}#/studio)\n- [Bedrock Console](https://console.aws.amazon.com/bedrock/home?region=${AWS::Region})\n\n## Next Steps\n\n1. Wait for infrastructure deployment to complete\n2. Access SageMaker Studio\n3. Clone workshop repository:\n```bash\ngit clone https://github.com/aws-samples/strands-agents-for-life-science.git\n```\n4. Start with `00-setup_environment.ipynb`"
+              }
+            }
+          ]
+        }
+
+Outputs:
+  WorkshopStatus:
+    Description: Workshop Setup Status
+    Value: !If
+      - ShouldAutoDeploy
+      - !Sub |
+          ✅ Workshop auto-deployment initiated
+          Region: ${AWS::Region}
+          Account: ${AWS::AccountId}
+          Stack: ${AWS::StackName}
+      - "Manual deployment required"
+
+  DashboardURL:
+    Description: Workshop Status Dashboard
+    Value: !Sub 'https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=strands-workshop-status'
+
+  SageMakerStudioURL:
+    Description: SageMaker Studio Console
+    Value: !Sub 'https://console.aws.amazon.com/sagemaker/home?region=${AWS::Region}#/studio'
+
+  NextSteps:
+    Description: What to do next
+    Value: |
+      1. Infrastructure is deploying (35-45 minutes)
+      2. You can start Lab 1 immediately in SageMaker Studio
+      3. Monitor progress in CloudFormation console
+      4. All resources will be ready before Lab 2
