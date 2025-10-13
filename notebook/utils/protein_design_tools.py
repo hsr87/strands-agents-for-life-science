@@ -50,12 +50,6 @@ def get_stack_outputs():
         return {}
 
 @tool
-def test_configuration() -> str:
-    """Test the configuration retrieval"""
-    stack_config = get_stack_outputs()
-    return f"Stack config: {stack_config}"
-
-@tool
 def trigger_aho_workflow(
     seed_sequence: str,
     runName: Optional[str] = None,
