@@ -133,9 +133,10 @@ internal_db_mcp_client = MCPClient(lambda: stdio_client(
 # Import Protein Design Tools
 #########################################################
 try:
-    from utils.protein_design_tools import trigger_aho_workflow, monitor_aho_workflow, set_stack_config
+    from utils.protein_design_tools import trigger_protein_optimization, monitor_protein_workflow
     PROTEIN_TOOLS_AVAILABLE = True
     logger.info("Protein design tools loaded successfully")
+
 except ImportError as e:
     logger.warning(f"Protein design tools not available: {e}")
     PROTEIN_TOOLS_AVAILABLE = False
@@ -224,7 +225,7 @@ def create_orchestrator_agent(
 
         # Add Protein Design tools if available
         if PROTEIN_TOOLS_AVAILABLE:
-            tools.extend([trigger_aho_workflow, monitor_aho_workflow])
+            tools.extend([trigger_protein_optimization, monitor_protein_workflow])
             logger.info("protein_design_tools: 2 tools loaded")
 
         logger.info(f"Total tools available: {len(tools)}")
