@@ -88,7 +88,13 @@ if not st.session_state.greetings:
 
         **📚 외부 데이터베이스 검색 예시:**
         - "HER2 단백질에 대한 최신 연구 논문을 찾아주세요"
-        
+
+        **💾 내부 데이터베이스 검색 예시:**
+        - "데이터베이스에 어떤 테이블들이 있는지 알려주세요"
+
+        **🧬 단백질 설계 예시:**
+        - "다음 항체 서열을 최적화해주세요: EVQLVETGGGLVQPGGSLRLSCAASGFTLNSYGISWVRQAPGKGPEWVS - 안정성과 결합 친화력을 향상시키는 방향으로 최적화해주세요"
+
         무엇을 도와드릴까요?
         """
         st.markdown(intro)
