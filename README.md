@@ -43,7 +43,7 @@
 - **PubMed**: 생의학 문헌 검색
 - **ClinicalTrials.gov**: 임상시험 정보 조회
 
-#### [02. MCP를 통한 내부 데이터베이스 활용](notebook/02_internal_dbs.ipynb)
+#### [02. 내부 데이터베이스 활용](notebook/02_internal_dbs.ipynb)
 **학습 내용:**
 - Text-to-SQL 기술을 활용한 자연어 데이터베이스 쿼리
 - PostgreSQL 내부 임상/유전체 데이터 분석
@@ -81,7 +81,6 @@
 #### [05. Amazon Bedrock AgentCore로 Production 배포](notebook/05_production_agentcore.ipynb)
 **학습 내용:**
 - 모든 도구를 통합한 종합 Agent 구현
-- Docker 컨테이너화 및 ECR 배포
 - 서버리스 환경에서 확장 가능한 Agent 운영
 
 **통합 기능:**
@@ -112,9 +111,9 @@
   - Amazon S3
   - Amazon RDS/Aurora (PostgreSQL)
   - AWS HealthOmics
-  - Amazon ECR (AgentCore 배포 시)
+  - Amazon Bedrock AgentCore
 
-### 로컬 환경
+### SageMaker Studio Notebook 또는 로컬 환경에서 실습
 - Python 3.9 이상
 - Jupyter Notebook 또는 JupyterLab
 - AWS CLI 구성
@@ -154,7 +153,7 @@ jupyter notebook
 2. `notebook/01_external_dbs.ipynb` - 외부 DB 연동
 3. `notebook/02_internal_dbs.ipynb` - 내부 DB 연동
 4. `notebook/03_hybrid_tools.ipynb` - 하이브리드 도구
-5. `notebook/04_protein_design_strands.ipynb` - 단백질 설계
+5. `notebook/04_protein_design_strands.ipynb` - 단백질 설계 도구 사용
 6. `notebook/05_production_agentcore.ipynb` - Production 배포
 
 ---
