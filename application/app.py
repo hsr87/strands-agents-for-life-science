@@ -14,7 +14,7 @@ logger = logging.getLogger("streamlit")
 
 # Page configuration
 st.set_page_config(
-    page_title='생명과학 연구 AI 어시스턴트',
+    page_title='Life Science Research AI Assistant',
     page_icon='🧬',
     layout="centered",
     initial_sidebar_state="auto",
@@ -22,14 +22,14 @@ st.set_page_config(
 )
 
 with st.sidebar:
-    st.title("🧬 생명과학 연구 AI 어시스턴트")
+    st.title("🧬 Life Science Research AI Assistant")
 
     st.markdown(
         """
-        **Strands Agents & Amazon Bedrock AgentCore** 워크샵 웹 데모에 오신 것을 환영합니다!
+        Welcome to the **Strands Agents & Amazon Bedrock AgentCore** Workshop Web Demo!
         ---
 
-        자세한 코드는 [Github](https://github.com/hsr87/strands-agents-for-life-science)를 참조하세요.
+        For detailed code, please visit [Github](https://github.com/hsr87/strands-agents-for-life-science).
         """
     )
 
@@ -37,14 +37,14 @@ with st.sidebar:
 
     # Model selection
     modelName = st.selectbox(
-        '🤖 모델 선택',
+        '🤖 Model Selection',
         ('Claude 3.7 Sonnet', 'Claude 3.5 Sonnet', 'Claude 3.5 Haiku'),
         index=0
     )
 
     # Extended thinking (reasoning mode)
     select_reasoning = st.checkbox(
-        '🧠 Extended Thinking 활성화 (Claude 3.7 Sonnet 전용)',
+        '🧠 Enable Extended Thinking (Claude 3.7 Sonnet only)',
         value=False
     )
     reasoningMode = 'Enable' if select_reasoning and modelName == 'Claude 3.7 Sonnet' else 'Disable'
@@ -55,10 +55,10 @@ with st.sidebar:
     st.markdown("---")
 
     # Clear conversation button
-    clear_button = st.button("🔄 대화 초기화", key="clear")
+    clear_button = st.button("🔄 Reset Conversation", key="clear")
 
 # Main title
-st.title('🧬 생명과학 연구 AI 어시스턴트')
+st.title('🧬 Life Science Research AI Assistant')
 
 # Clear conversation if button clicked
 if clear_button is True:
@@ -82,20 +82,20 @@ display_chat_messages()
 if not st.session_state.greetings:
     with st.chat_message("assistant"):
         intro = """
-        안녕하세요! **생명과학 연구 AI 어시스턴트**입니다.
+        Hello! I'm the **Life Science Research AI Assistant**.
 
-        저는 다음과 같은 질문에 답변할 수 있습니다:
+        I can help you with questions like:
 
-        **📚 외부 데이터베이스 검색 예시:**
-        - "HER2 단백질에 대한 최신 연구 논문을 찾아주세요"
+        **📚 External Database Search Examples:**
+        - "Find the latest research papers on HER2 protein"
 
-        **💾 내부 데이터베이스 검색 예시:**
-        - "데이터베이스에 어떤 테이블들이 있는지 알려주세요"
+        **💾 Internal Database Query Examples:**
+        - "What tables are available in the database?"
 
-        **🧬 단백질 설계 예시:**
-        - "다음 항체 서열을 최적화해주세요: EVQLVETGGGLVQPGGSLRLSCAASGFTLNSYGISWVRQAPGKGPEWVS - 안정성과 결합 친화력을 향상시키는 방향으로 최적화해주세요"
+        **🧬 Protein Design Examples:**
+        - "Optimize the following antibody sequence: EVQLVETGGGLVQPGGSLRLSCAASGFTLNSYGISWVRQAPGKGPEWVS - optimize for improved stability and binding affinity"
 
-        무엇을 도와드릴까요?
+        How can I help you today?
         """
         st.markdown(intro)
         st.session_state.messages.append({"role": "assistant", "content": intro})
@@ -109,7 +109,7 @@ if clear_button or "messages" not in st.session_state:
     chat.clear_chat_history()
 
 # Chat input
-if prompt := st.chat_input("질문을 입력하세요..."):
+if prompt := st.chat_input("Enter your question..."):
     # Display user message
     with st.chat_message("user"):
         st.markdown(prompt)

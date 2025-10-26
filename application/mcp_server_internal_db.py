@@ -32,9 +32,9 @@ except Exception as e:
 
 @mcp.tool()
 async def fetch_table_schema() -> dict:
-    """Postgres public 스키마의 테이블과 컬럼 정보를 조회하는 도구입니다.
-    - 쿼리를 자동 생성할 때 테이블 구조가 필요하면 이 도구를 사용하세요.
-    - 단순히 데이터 조회만 하는 경우에는 호출할 필요가 없습니다.
+    """Tool to query table and column information from the Postgres public schema.
+    - Use this tool when you need table structure for automatic query generation.
+    - No need to call this if you're only performing simple data queries.
     """
     try:
         conn = psycopg2.connect(**DB_CONFIG)
@@ -56,7 +56,7 @@ async def fetch_table_schema() -> dict:
                            """)
 
             rows = cursor.fetchall()
-            # 테이블별로 그룹화
+            # Group by table
             tables = defaultdict(list)
             for table_name, column_name, data_type, column_comment in rows:
                 tables[table_name].append({
@@ -76,9 +76,9 @@ async def fetch_table_schema() -> dict:
 
 @mcp.tool()
 async def execute_postgres_query(query: str) -> dict:
-    """사용자가 요청한 SQL 쿼리를 실행하는 도구입니다.
-    - 쿼리가 명확히 주어진 경우 이 도구만 호출하면 됩니다.
-    - 쿼리를 자동 생성해야 하는 경우, 필요하다면 먼저 fetch_table_schema를 호출해 스키마를 확인한 뒤 실행하세요."""
+    """Tool to execute the SQL query requested by the user.
+    - If the query is clearly given, just call this tool.
+    - If you need to auto-generate a query, first call fetch_table_schema to check the schema if necessary, then execute."""
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cur = conn.cursor()

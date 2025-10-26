@@ -39,21 +39,21 @@ def trigger_protein_optimization(
         String with workflow run information
     """
     try:
-        # 계정과 지역 정보 추출
-        # AWS 클라이언트
+        # Extract account and region information
+        # AWS clients
         omics_client = boto3.client('omics')
         s3_client = boto3.client('s3')
         sts_client = boto3.client('sts')
         account_id = sts_client.get_caller_identity()['Account']
         region = boto3.Session().region_name
-        
-        # 워크플로우 파라미터 설정 - '04_protein_design_strands.ipynb' 노트북의 6번째 cell에서 출력되는 설정으로 입력
+
+        # Workflow parameter configuration - Enter the settings output from the 6th cell of '04_protein_design_strands.ipynb' notebook
         workflow_id = ''
         role_arn = ""
         s3_bucket = ""
         container_image = f"{account_id}.dkr.ecr.{region}.amazonaws.com/protein-design-evoprotgrad:latest"
 
-        # 서열 검증
+        # Sequence validation
         valid_amino_acids = set('ACDEFGHIKLMNPQRSTVWY')
         if not all(aa in valid_amino_acids for aa in seed_sequence.upper()):
             return {"error": "Invalid amino acid seed_sequence"}

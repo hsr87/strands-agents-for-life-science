@@ -1,96 +1,96 @@
-# 생명과학 연구 AI 어시스턴트
+# Life Science Research AI Assistant
 
-**Strands Agents**와 **Amazon Bedrock AgentCore**를 활용한 통합 생명과학 연구 플랫폼입니다.
+An integrated life science research platform utilizing **Strands Agents** and **Amazon Bedrock AgentCore**.
 
-이 애플리케이션은 AWS 워크샵의 실습 노트북(01-04)에서 다룬 기능을 하나의 완성된 Streamlit 앱으로 통합한 웹 애플리케이션 예시입니다.
+This application is a complete Streamlit web application example that integrates the features covered in AWS workshop notebooks (01-04).
 
-실제 실행을 위해선 2-4번 DB 설정 등의 추가 설정이 필요합니다.
-
----
-
-## 주요 기능
-
-### 📚 1. 외부 데이터베이스 검색 (노트북 01)
-
-MCP(Model Context Protocol)를 통해 다음 외부 데이터베이스에 접근:
-
-- **ArXiv**: 학술 논문 및 프리프린트 검색
-- **PubMed**: 생의학 문헌 검색
-- **ChEMBL**: 화학 화합물 및 생물학적 활성 데이터
-- **ClinicalTrials.gov**: 임상시험 정보
-
-**예시 질문:**
-```
-"HER2 단백질에 대한 최신 연구 논문을 찾아주세요"
-"아스피린의 생물학적 활성 데이터를 알려주세요"
-"유방암 관련 임상시험 정보를 검색해주세요"
-```
-
-### 💾 2. 내부 데이터베이스 분석 (노트북 02)
-
-PostgreSQL 데이터베이스의 임상 및 유전체 데이터를 **Text2SQL** 기술로 분석:
-
-- **chemotherapy_survival**: 화학요법 후 환자 생존 데이터
-- **clinical_genomic**: 폐암 환자의 임상 및 유전체 통합 데이터
-
-**예시 질문:**
-```
-"선암 환자의 평균 연령을 알려주세요"
-"EGFR 돌연변이를 가진 환자들의 생존율을 분석해주세요"
-"화학요법 후 생존한 환자와 사망한 환자의 LRIG1 유전자 발현량을 비교해주세요"
-```
-
-### 🔬 3. 하이브리드 도구 활용 (노트북 03)
-
-내부 지식베이스(Amazon Bedrock Knowledge Base)와 외부 데이터소스(PubMed)를 통합 검색:
-
-**예시 질문:**
-```
-"HER2 양성 유방암에서 HER2 표적 치료제의 효과에 관한 증거를 내부 지식베이스와 PubMed에서 검색해주세요"
-```
-
-### 🧪 4. 단백질 설계 (노트북 04)
-
-AWS HealthOmics 워크플로우를 통한 단백질 서열 최적화:
-
-- 방향성 진화 알고리즘 적용
-- 워크플로우 실행 및 모니터링
-- 최적화 결과 분석
-
-**예시 질문:**
-```
-"이 단백질 서열을 최적화해주세요: EVQLVETGGGLVQPGGSLRLSCAASGFTLN..."
-"20개의 병렬 체인과 200단계로 단백질 최적화를 실행해주세요"
-"워크플로우 실행 상태를 확인해주세요"
-```
+Additional configuration such as DB setup (steps 2-4) is required for actual execution.
 
 ---
 
-## 설치 및 실행
+## Key Features
 
-### 사전 요구사항
+### 📚 1. External Database Search (Notebook 01)
 
-1. **Python 3.9 이상**
-2. **AWS 계정 및 자격 증명 설정**
-3. **필요한 AWS 리소스** (워크샵 환경 설정 노트북 00 참조):
+Access external databases via MCP (Model Context Protocol):
+
+- **ArXiv**: Search academic papers and preprints
+- **PubMed**: Biomedical literature search
+- **ChEMBL**: Chemical compound and biological activity data
+- **ClinicalTrials.gov**: Clinical trial information
+
+**Example Questions:**
+```
+"Find the latest research papers on HER2 protein"
+"Tell me about the biological activity data of aspirin"
+"Search for clinical trial information related to breast cancer"
+```
+
+### 💾 2. Internal Database Analysis (Notebook 02)
+
+Analyze clinical and genomic data in PostgreSQL database using **Text2SQL** technology:
+
+- **chemotherapy_survival**: Patient survival data after chemotherapy
+- **clinical_genomic**: Lung cancer patient clinical and genomic integrated data
+
+**Example Questions:**
+```
+"Tell me the average age of adenocarcinoma patients"
+"Analyze the survival rate of patients with EGFR mutations"
+"Compare LRIG1 gene expression levels between surviving and deceased patients after chemotherapy"
+```
+
+### 🔬 3. Hybrid Tool Integration (Notebook 03)
+
+Integrated search across internal knowledge base (Amazon Bedrock Knowledge Base) and external data sources (PubMed):
+
+**Example Questions:**
+```
+"Search for evidence on the effectiveness of HER2-targeted therapies in HER2-positive breast cancer from both internal knowledge base and PubMed"
+```
+
+### 🧪 4. Protein Design (Notebook 04)
+
+Protein sequence optimization through AWS HealthOmics workflow:
+
+- Apply directed evolution algorithm
+- Execute and monitor workflow
+- Analyze optimization results
+
+**Example Questions:**
+```
+"Optimize this protein sequence: EVQLVETGGGLVQPGGSLRLSCAASGFTLN..."
+"Run protein optimization with 20 parallel chains and 200 steps"
+"Check the workflow execution status"
+```
+
+---
+
+## Installation and Execution
+
+### Prerequisites
+
+1. **Python 3.9 or higher**
+2. **AWS account and credential setup**
+3. **Required AWS resources** (refer to workshop environment setup notebook 00):
    - Amazon RDS (PostgreSQL)
-   - Amazon Bedrock 접근 권한
-   - AWS HealthOmics 워크플로우 (단백질 설계 기능 사용 시)
+   - Amazon Bedrock access permissions
+   - AWS HealthOmics workflow (for protein design feature)
 
-### 설치
+### Installation
 
 ```bash
-# 저장소 클론
+# Clone repository
 git clone <repository-url>
 cd application
 
-# 의존성 설치
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 환경 변수 설정
+### Environment Variable Setup
 
-내부 데이터베이스 사용을 위해 다음 환경 변수를 설정하세요:
+Set the following environment variables to use the internal database:
 
 ```bash
 export DB_HOST="your-rds-endpoint"
@@ -100,38 +100,38 @@ export DB_USER="dbadmin"
 export DB_PASSWORD="your-password"
 ```
 
-단백질 설계 기능 사용 시 추가 설정이 필요합니다 (노트북 04 참조).
+Additional setup is required for the protein design feature (refer to notebook 04).
 
-### 실행
+### Execution
 
 ```bash
-# Streamlit 앱 실행
+# Run Streamlit app
 streamlit run app.py
 ```
 
-브라우저에서 `http://localhost:8501`로 접속하세요.
+Access in browser at `http://localhost:8501`.
 
 ---
 
-## 아키텍처
+## Architecture
 
 ```
-생명과학 연구 AI 어시스턴트
+Life Science Research AI Assistant
 │
 ├── Streamlit UI (app.py)
-│   └── 사용자 인터페이스
+│   └── User Interface
 │
 ├── Orchestrator Agent (chat.py)
-│   ├── 외부 DB 에이전트
+│   ├── External DB Agents
 │   │   ├── ArXiv MCP Client
 │   │   ├── PubMed MCP Client
 │   │   ├── ChEMBL MCP Client
 │   │   └── ClinicalTrials MCP Client
 │   │
-│   ├── 내부 DB 에이전트
+│   ├── Internal DB Agent
 │   │   └── PostgreSQL MCP Client
 │   │
-│   └── 단백질 설계 에이전트
+│   └── Protein Design Agent
 │       └── AWS HealthOmics Tools
 │
 └── MCP Servers
@@ -144,99 +144,99 @@ streamlit run app.py
 
 ### MCP (Model Context Protocol)
 
-MCP는 AI 에이전트가 외부 도구 및 데이터 소스와 통신할 수 있게 해주는 프로토콜입니다:
+MCP is a protocol that enables AI agents to communicate with external tools and data sources:
 
-- **MCP 서버**: 특정 기능을 제공하는 독립 프로세스
-- **MCP 클라이언트**: 에이전트가 서버의 기능을 호출할 수 있게 해주는 인터페이스
-- **통신 방식**: stdin/stdout 기반 JSON-RPC
-
----
-
-## 기술 스택
-
-- **Strands Agents**: 오픈소스 AI 에이전트 프레임워크
-- **Amazon Bedrock**: Claude 3.7 Sonnet 등 Foundation 모델 제공
-- **Amazon RDS (PostgreSQL)**: 임상 및 유전체 데이터 저장
-- **AWS HealthOmics**: 생명과학 워크플로우 실행
-- **Streamlit**: 웹 UI 프레임워크
-- **MCP (Model Context Protocol)**: 도구 통합 프로토콜
+- **MCP Server**: Independent process providing specific functionality
+- **MCP Client**: Interface allowing agents to invoke server functionality
+- **Communication Method**: stdin/stdout-based JSON-RPC
 
 ---
 
-## 사용 예시
+## Technology Stack
 
-### 종합 분석 요청
+- **Strands Agents**: Open-source AI agent framework
+- **Amazon Bedrock**: Provides foundation models like Claude 3.7 Sonnet
+- **Amazon RDS (PostgreSQL)**: Store clinical and genomic data
+- **AWS HealthOmics**: Execute life science workflows
+- **Streamlit**: Web UI framework
+- **MCP (Model Context Protocol)**: Tool integration protocol
 
-```
-질문: "HER2 양성 유방암에 대한 종합 분석을 해주세요"
+---
 
-AI 어시스턴트의 작업:
-1. ArXiv에서 최신 연구 논문 검색
-2. PubMed에서 생의학 문헌 검색
-3. ChEMBL에서 HER2 관련 화합물 데이터 검색
-4. ClinicalTrials.gov에서 관련 임상시험 검색
-5. 내부 DB에서 HER2 관련 환자 데이터 분석
-6. 모든 정보를 종합하여 포괄적인 보고서 생성
-```
+## Usage Examples
 
-### Text2SQL 예시
+### Comprehensive Analysis Request
 
 ```
-질문: "50세 이상 흡연자 중 EGFR 돌연변이가 있는 환자 수는?"
+Question: "Provide a comprehensive analysis of HER2-positive breast cancer"
 
-AI 어시스턴트의 작업:
-1. 스키마 분석 (fetch_table_schema)
-2. SQL 쿼리 생성:
+AI Assistant's Tasks:
+1. Search for latest research papers on ArXiv
+2. Search biomedical literature on PubMed
+3. Search HER2-related compound data on ChEMBL
+4. Search related clinical trials on ClinicalTrials.gov
+5. Analyze HER2-related patient data from internal DB
+6. Generate comprehensive report by synthesizing all information
+```
+
+### Text2SQL Example
+
+```
+Question: "How many patients over 50 who are smokers have EGFR mutations?"
+
+AI Assistant's Tasks:
+1. Analyze schema (fetch_table_schema)
+2. Generate SQL query:
    SELECT COUNT(*)
    FROM clinical_genomic
    WHERE Age_at_Histological_Diagnosis >= 50
      AND Smoking_status LIKE '%smoker%'
      AND EGFR_mutation_status LIKE '%Mutant%'
-3. 쿼리 실행 (execute_postgres_query)
-4. 결과를 자연어로 해석하여 응답
+3. Execute query (execute_postgres_query)
+4. Interpret results in natural language
 ```
 
 ---
 
-## 제한사항
+## Limitations
 
-- 이 애플리케이션은 **교육 및 데모 목적**으로 제작되었습니다
-- **프로덕션 환경**에서 사용하려면 추가적인 보안 및 성능 최적화가 필요합니다
-- 외부 API의 속도 제한이 적용될 수 있습니다
+- This application was created for **educational and demo purposes**
+- Additional security and performance optimization are needed for **production environment** use
+- External API rate limits may apply
 
 ---
 
-## 문제 해결
+## Troubleshooting
 
-### MCP 서버 연결 오류
+### MCP Server Connection Error
 
 ```bash
-# MCP 서버가 올바르게 실행되는지 확인
+# Verify MCP server runs correctly
 python application/mcp_server_arxiv.py
 ```
 
-### 데이터베이스 연결 오류
+### Database Connection Error
 
 ```bash
-# 환경 변수 확인
+# Check environment variables
 echo $DB_HOST
 echo $DB_PORT
 
-# RDS 엔드포인트 접근 가능 여부 확인
+# Verify RDS endpoint accessibility
 psql -h $DB_HOST -U $DB_USER -d $DB_NAME
 ```
 
-### 단백질 설계 기능 오류
+### Protein Design Feature Error
 
-CloudFormation 스택(`protein-design-stack`)이 정상적으로 배포되었는지 확인하세요.
+Verify that the CloudFormation stack (`protein-design-stack`) has been deployed successfully.
 
-## 참고 자료
+## References
 
-- [Strands Agents 문서](https://strandsagents.com/)
-- [Amazon Bedrock 문서](https://docs.aws.amazon.com/bedrock/)
-- [AWS HealthOmics 문서](https://docs.aws.amazon.com/omics/)
-- [MCP 프로토콜](https://modelcontextprotocol.io/)
+- [Strands Agents Documentation](https://strandsagents.com/)
+- [Amazon Bedrock Documentation](https://docs.aws.amazon.com/bedrock/)
+- [AWS HealthOmics Documentation](https://docs.aws.amazon.com/omics/)
+- [MCP Protocol](https://modelcontextprotocol.io/)
 
-## 라이선스
+## License
 
 MIT-0 License
