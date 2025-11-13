@@ -19,10 +19,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("chat")
 
-model_name = "Claude 3.7 Sonnet"
+model_name = "Claude 4.5 Sonnet"
 model_type = "claude"
 debug_mode = "Enable"
-model_id = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+model_id = "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
 models = info.get_model_info(model_name)
 reasoning_mode = 'Disable'
 
