@@ -141,10 +141,9 @@
 
 2.  **Stack Name**, 계정 및 리전에 고유한 값을 입력하세요.  **Next** 다음 단계로 갑니다.
     ![Provide a stack name](imgs/name.png)  
-3. **AWS CloudFormation이 사용자 지정 이름으로 IAM 리소스를 생성할 수 있음을 인정합니다**를 선택하세요..  
-4. **스택 만들기**를 선택하세요.  
+3. **AWS CloudFormation이 사용자 지정 이름으로 IAM 리소스를 생성할 수 있음을 인정합니다**를 선택후, **스택 만들기**를 선택하세요.  
     ![Choose Create Stack](imgs/create_stack.png)  
-5. AWS CloudFormation이 필요한 인프라 스택과 모듈 컨테이너를 생성하는 데 약 1시간 정도 기다립니다.
+4. AWS CloudFormation이 필요한 인프라 스택과 모듈 컨테이너를 생성하는 데 약 1시간 정도 기다립니다.
 
 
 
