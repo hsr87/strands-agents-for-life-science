@@ -129,6 +129,25 @@
 
 ## 빠른 시작
 
+
+### 0. CloudFormation 배포하기 
+1. 내 계정에 cloudformation stack 배포하기:
+
+    | Region | Launch URL |
+    | ------ | ---------- |
+    | us-east-1 | [![Launch Stack](imgs/LaunchStack.jpg)](https://us-east-1.console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://ws-assets-prod-iad-r-iad-ed304a55c2ca1aee.s3.us-east-1.amazonaws.com/fe97ac91-ff75-4753-a269-af39e7c3d765/unify.yaml) |
+    | us-west-2 | [![Launch Stack](imgs/LaunchStack.jpg)](https://us-west-2.console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://ws-assets-prod-iad-r-pdx-f3b3f9f1a7d6a3d0.s3.us-west-2.amazonaws.com/fe97ac91-ff75-4753-a269-af39e7c3d765/unify.yaml) |
+
+
+2.  **Stack Name**, 계정 및 리전에 고유한 값을 입력하세요.  **Next** 다음 단계로 갑니다.
+    ![Provide a stack name](imgs/name.png)  
+3. **AWS CloudFormation이 사용자 지정 이름으로 IAM 리소스를 생성할 수 있음을 인정합니다**를 선택후, **스택 만들기**를 선택하세요.  
+    ![Choose Create Stack](imgs/create_stack.png)  
+4. AWS CloudFormation이 필요한 인프라 스택과 모듈 컨테이너를 생성하는 데 약 1시간 정도 기다립니다.
+
+
+
+
 ### 1. 환경 설정
 ```bash
 # 저장소 클론
