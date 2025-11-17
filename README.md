@@ -129,8 +129,9 @@
 
 ## 빠른 시작
 
-> [!INFO]
-> 1. 내 계정에 cloudformation stack 배포하기  Choose **Launch Stack** and (if prompted) log into your AWS account:
+
+### 0. CloudFormation 배포하기 
+1. 내 계정에 cloudformation stack 배포하기  Choose **Launch Stack** and (if prompted) log into your AWS account:
 
     | Region | Launch URL |
     | ------ | ---------- |
@@ -138,13 +139,12 @@
     | us-west-2 | [![Launch Stack](imgs/LaunchStack.jpg)](https://us-west-2.console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://ws-assets-prod-iad-r-pdx-f3b3f9f1a7d6a3d0.s3.us-west-2.amazonaws.com/fe97ac91-ff75-4753-a269-af39e7c3d765/unify.yaml) |
 
 
-
-> 2. For **Stack Name**, enter a value unique to your account and region. Also update the *DeploymentRegion** parameter with the name of your current AWS region. Leave the other parameters as their default values and select **Next**.  
+2. For **Stack Name**, enter a value unique to your account and region. Also update the *DeploymentRegion** parameter with the name of your current AWS region. Leave the other parameters as their default values and select **Next**.  
     ![Provide a stack name](imgs/name.png)  
-> 3. Select **I acknowledge that AWS CloudFormation might create IAM resources with custom names**.  
-> 4. Choose **Create stack**.  
+3. Select **I acknowledge that AWS CloudFormation might create IAM resources with custom names**.  
+4. Choose **Create stack**.  
     ![Choose Create Stack](imgs/create_stack.png)  
-> 5. Wait 20 minutes for AWS CloudFormation to create the necessary infrastructure stack and module containers.
+5. Wait 20 minutes for AWS CloudFormation to create the necessary infrastructure stack and module containers.
 
 
 
